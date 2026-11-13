@@ -750,7 +750,7 @@ function detail(id){
   <div class="price"><span class="tag" data-t="${esc(h.type)}">${esc(h.type)}</span>${esc(h.price)}</div>
   <h2 style="font-size:19px">${esc(h.title)}<span class="ago">${ago(h.days)}</span><span class="ago">${EYE} ${fa(h.views)}</span></h2>
   <div class="addr">${esc(h.area)}، ${esc(h.address)}</div>
-  <div id="phoneBox">${h.status === 'rented' ? '<div class="note">این آگهی تمام شده و به‌زودی از سایت برداشته می‌شود.</div>' : '<button type="button" class="call" id="reveal" data-reveal="${h.id}" style="border:0;font-family:inherit;cursor:pointer;width:100%">نمایش شماره تماس</button><div class="hint" id="revMsg"></div>'}</div>
+  <div id="phoneBox">${h.status === 'rented' ? '<div class="note">این آگهی تمام شده و به‌زودی از سایت برداشته می‌شود.</div>' : `<button type="button" class="call" id="reveal" data-reveal="${h.id}" style="border:0;font-family:inherit;cursor:pointer;width:100%">نمایش شماره تماس</button><div class="hint" id="revMsg"></div>`}</div>
   <div class="actions" style="margin-top:8px">
     <button type="button" class="call share" data-share="${h.id}">اشتراک‌گذاری</button>
     <button type="button" class="call share ${favs.includes(h.id)?'on':''}" data-fav="${h.id}">${favs.includes(h.id)?'♥ ذخیره‌شد':'♡ ذخیره'}</button>
