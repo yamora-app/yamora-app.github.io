@@ -196,10 +196,17 @@ a:focus-visible,button:focus-visible,input:focus-visible,.thumbs img:focus-visib
 .a-go:disabled{opacity:.6}
 .a-bot{margin-top:28px;padding:18px 20px 26px;border-top:1px solid #26282d;text-align:center;font-size:14px;color:#b6bbc3}
 .a-sw{margin-top:8px;display:block;width:100%;max-width:380px;margin-inline:auto;height:46px;border:1.5px solid var(--sign);background:none;color:var(--sign);border-radius:12px;font:inherit;font-size:16px;font-weight:bold;cursor:pointer}
+.welcome{position:relative;background:var(--ink);color:#fff;border-radius:14px;padding:18px 18px 16px;margin:14px 0 0}
+.welcome b{display:block;font-size:17px;line-height:1.7;padding-left:26px}
+.welcome p{margin:6px 0 12px;font-size:14px;line-height:1.9;color:#dbe4ee}
+.welcome .wbtn{display:inline-block;background:var(--sign);color:#17324d;text-decoration:none;font-weight:bold;font-size:14px;padding:8px 16px;border-radius:9px}
+.welcome .wx{position:absolute;top:6px;left:8px;background:none;border:0;color:#fff;font-size:24px;line-height:1;cursor:pointer;padding:4px 8px}
 .rules h1{margin-bottom:6px}
 .rules h2{font-size:17px;margin:18px 0 6px}
 .rules ol,.rules ul{padding-right:20px}
 .rules li{margin:6px 0;font-size:14.5px}
+.rules .rintro{font-size:14.5px;line-height:1.9;margin:4px 0 8px}
+.rules ul{list-style:disc}
 .rules .soft{font-size:12px;color:var(--mute);margin-top:16px}
 
 
@@ -580,8 +587,16 @@ const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 
 let cur = '/', tab = 'کرایی', query = '', hist = [];
 
+function welcomeSeen(){ try{ return localStorage.getItem('welcome_seen')==='1'; }catch(e){ return false; } }
+function welcomeHtml(){
+  if(isUser() || welcomeSeen()) return '';
+  return `<div class="welcome" id="welcomeBox"><button type="button" class="wx" id="welcomeX" aria-label="بستن">×</button>
+  <b>خانه را از روی مبل خانهٔ خودتان پیدا کنید.</b>
+  <p>بدون گشتن در کوچه‌ها، بدون خسته شدن؛ عکس‌ها، قیمت‌ها و شماره‌ها همه در یک‌جا.</p>
+  <a class="wbtn" href="#" data-go="/c/house">دیدن خانه‌ها</a></div>`;
+}
 function home(){
-  return `<h1>چه چیزی می‌خواهی؟</h1>
+  return welcomeHtml() + `<h1>چه چیزی می‌خواهی؟</h1>
   <div class="grid">${categories.map(c=>`<a class="tile" href="#" data-go="/c/${c.id}"><div class="img ${c.photo?'full':''}">${c.icon}</div><span>${c.name}</span></a>`).join('')}</div>`;
 }
 const STAMP = {'کرایی':'اجاره شد','گروی':'گرفته شد','فروشی':'فروخته شد'};
@@ -800,14 +815,20 @@ const TYPE_SPEC = {
   'گروی': {extra:[{k:'aud', l:'مناسب برای', opts:['خانواده','مجرد','هر دو'], def:'خانواده'}, {k:'dur', l:'مدت گروی', opts:['۶ ماه','۱ سال','۲ سال','توافقی'], def:'۱ سال'}]},
   'فروشی': {extra:[{k:'doc', l:'نوع سند', opts:['سند رسمی','قباله شرعی','سند دیگر'], def:'سند رسمی'}, {k:'cond', l:'وضعیت خانه', opts:['نوساز','قابل سکونت','نیاز به ترمیم'], def:'قابل سکونت'}, {k:'sqm', l:'مساحت زمین به متر مربع (اختیاری)', text:'مثلاً ۲۰۰', num:true}]}
 };
+const COMMON_EXTRA = [
+  {k:'bath', l:'حمام', opts:['۱','۲','بیشتر'], def:'۱'},
+  {k:'toil', l:'تشناب', opts:['۱','۲','بیشتر'], def:'۱'},
+  {k:'kit', l:'آشپزخانه', opts:['۱','۲','بیشتر'], def:'۱'}
+];
+const allExtra = type => COMMON_EXTRA.concat(TYPE_SPEC[type].extra);
 function xfields(type){
-  return TYPE_SPEC[type].extra.map(f => f.opts
+  return allExtra(type).map(f => f.opts
     ? `<div class="field"><span class="lbl">${f.l}</span>${group('x_'+f.k, f.opts.map(o=>[o,o]), f.def, 'chips sel')}</div>`
     : `<div class="field"><label for="x_${f.k}">${f.l}</label><input class="fi" id="x_${f.k}" maxlength="40" placeholder="${f.text}"${f.num?' inputmode="numeric"':''}></div>`).join('');
 }
 function readExtras(type){
   const out = [];
-  TYPE_SPEC[type].extra.forEach(f => {
+  allExtra(type).forEach(f => {
     const val = f.opts ? gv('x_'+f.k) : ($('x_'+f.k).value.trim());
     if(val) out.push([f.l.replace(/ \(اختیاری\)/,'').replace(/ به متر مربع/,' (متر مربع)'), f.num ? fa(toLatin(val).replace(/\D/g,'')) : val]);
   });
@@ -825,7 +846,7 @@ function postPage(){
 
   <div class="qbox" id="qBox" hidden></div>
   <h2 class="sec2">عکس‌ها</h2>
-  <div class="sub">شما می‌توانید حداکثر ${fa(MAX_PHOTOS)} عکس انتخاب کنید. عکس را از بیرون خانه بگیرید تا مشتری راحت‌تر خانه را پیدا کند.</div>
+  <div class="sub">شما می‌توانید حداکثر ${fa(MAX_PHOTOS)} عکس انتخاب کنید. عکس اول را از بیرون خانه بگیرید تا مشتری راحت‌تر خانه را پیدا کند و بقیهٔ عکس‌ها را از داخل خانه و اتاق‌ها بگذارید. آگهی‌ای که عکس داخل خانه نداشته باشد منتشر نمی‌شود.</div>
   <div id="pwrap"></div>
   <div class="hint" id="photoMsg"></div>
   <label class="lnk" for="fCam">یا با دوربین عکس بگیر</label>
@@ -1123,7 +1144,7 @@ function initEdit(id){
 // ================= پنل مدیر =================
 let adminTab = 'ads', adminUsers = null, adminStats = null, usersSub = 'active', usersQ = '', adminTabBusy = false;
 let adminList = null, adminFilter = 'pending', adminOwners = {}, adminReps = [], adminView = null, rejTarget = null;
-const REJ_REASONS = ['عکس خانه نیست','شماره یا قیمت نادرست است','آدرس ناقص است','آگهی تکراری است','قوانین را رعایت نکرده'];
+const REJ_REASONS = ['عکس خانه نیست','عکس داخل خانه ندارد','شماره یا قیمت نادرست است','آدرس ناقص است','آگهی تکراری است','قوانین را رعایت نکرده'];
 function adminPage(){
   if(!isAdmin) return '<div class="empty">این بخش فقط برای مدیر است.</div>';
   return '<div class="adm" id="admBox"><div class="a-empty">در حال بارگیری...</div></div>';
@@ -1308,25 +1329,75 @@ function initAdmin(){
     }catch(err){ toast(errMsg(err)); }
   };
 }
-function rulesHtml(){ return `<ol>
-  <li>یامورا فعلاً فقط برای آگهی خانه (کرایی، گروی، فروشی) در دشت برچی است. دیدن و ثبت آگهی رایگان است.</li>
-  <li>فقط خانهٔ خودت را آگهی کن، یا خانه‌ای که صاحبش اجازه داده است.</li>
-  <li>عکس‌ها باید از خود خانه باشد. عکس دیگران، عکس از اینترنت و عکس غیر خانه قبول نیست.</li>
-  <li>قیمت، آدرس و شمارهٔ تماس باید درست باشد. آگهی دروغ یا تکراری پاک می‌شود و حساب ممکن است بسته شود.</li>
-  <li>هر آگهی بعد از بررسی نمایش داده می‌شود و ${fa(AD_DAYS)} روز می‌ماند. بعد از آن می‌توانی تمدیدش کنی.</li>
-  <li>ما می‌توانیم هر آگهی را رد یا پاک کنیم.</li>
-  <li>یامورا فقط جای آگهی است و در معامله دخالت ندارد. قبل از دیدن خانه و بستن قرارداد، پول نده و قرارداد را درست و کتبی ببند.</li>
-  <li>آگهی مشکوک را از بخش «گزارش» خبر بده.</li>
-</ol>
-<h2>حریم خصوصی</h2>
+function rulesHtml(){ return `<p class="rintro">یامورا بستری رایگان برای آگهی‌های خانه است. برای اینکه فضای سایت منظم و قابل اعتماد بماند، لطفاً پیش از استفاده این قوانین را بخوانید. ساخت حساب و ثبت آگهی به معنای پذیرفتن این قوانین است.</p>
+<h2>۱. دربارهٔ سایت</h2>
 <ul>
-  <li>ایمیل و رمز فقط برای ورود به حساب است. رمز به شکل رمزنگاری‌شده نگه‌داری می‌شود و ما آن را نمی‌بینیم. ایمیل را به کسی نمی‌دهیم.</li>
-  <li>شمارهٔ تماس فقط وقتی بیننده دکمهٔ «نمایش شماره تماس» را بزند دیده می‌شود، و تعداد دیدن شماره محدود است.</li>
-  <li>عکس‌ها و اطلاعات آگهی برای همه دیده می‌شود.</li>
-  <li>اطلاعات تو را نمی‌فروشیم.</li>
-  <li>برای پاک شدن حساب یا آگهی‌هایت از بخش «گزارش» به ما بگو.</li>
+  <li>یامورا یک تابلوی آگهی است. خود سایت خانه‌ای نمی‌فروشد، کرایه نمی‌دهد و در معامله‌ها نقش واسطه ندارد.</li>
+  <li>استفاده از یامورا برای کاربران رایگان است. یامورا از معامله‌ها کمیسیون نمی‌گیرد و هیچ‌کس از طرف یامورا حق ندارد از شما پولی طلب کند.</li>
+  <li>ممکن است در آینده تبلیغات در سایت نمایش داده شود.</li>
 </ul>
-<div class="soft">این متن اولیه است و ممکن است بعداً کامل‌تر شود.</div>`; }
+<h2>۲. محدودهٔ فعلی خدمات</h2>
+<ul>
+  <li>در حال حاضر، یامورا فقط <b>منطقهٔ دشت برچی در کابل</b> را پوشش می‌دهد. منطقه‌های دیگر به‌زودی اضافه می‌شوند.</li>
+  <li>در حال حاضر، فقط <b>آگهی‌های خانه</b> (کرایی، گروی و فروشی) پذیرفته می‌شود.</li>
+  <li><b>دسته‌های جدید، مانند موتر، موبایل، لپ‌تاپ و دیگر کالاها، به‌زودی اضافه می‌شوند.</b> فروشندگان می‌توانند پس از اضافه شدن هر دسته، کالای خود را در همان‌جا ثبت کنند.</li>
+  <li>آگهی ملک‌هایی که خارج از دشت برچی هستند، فعلاً پذیرفته نمی‌شود.</li>
+</ul>
+<h2>۳. حساب کاربری</h2>
+<ul>
+  <li>هر شخص با یک ایمیل واقعی، یک حساب می‌سازد.</li>
+  <li>نگهداری رمز و هر فعالیتی که با حساب انجام شود، بر عهدهٔ صاحب حساب است.</li>
+  <li>هر زمان که بخواهید، می‌توانید از بخش «دربارهٔ من» حساب خود را حذف کنید. با حذف حساب، همهٔ اطلاعات و آگهی‌های شما از سرور پاک می‌شود.</li>
+</ul>
+<h2>۴. ثبت آگهی</h2>
+<ul>
+  <li>آگهی را فقط مالک ملک یا کسی که از مالک اجازه دارد، می‌تواند ثبت کند.</li>
+  <li>هر کاربر می‌تواند در هر ۳۰ روز، حداکثر ${fa(MONTH_LIMIT)} آگهی ثبت کند.</li>
+  <li>هر آگهی پیش از انتشار توسط مدیر بررسی می‌شود. اگر آگهی رد شود، دلیل آن در پنل شما نوشته می‌شود و می‌توانید آن را اصلاح و دوباره ثبت کنید.</li>
+  <li>هر آگهی ${fa(AD_DAYS)} روز نمایش داده می‌شود و با گزینهٔ «تمدید»، برای ${fa(AD_DAYS)} روز دیگر باقی می‌ماند. آگهی منقضی‌شده تا ۷ روز در پنل شما می‌ماند و سپس به‌طور خودکار پاک می‌شود.</li>
+  <li>زمانی که ملک کرایه یا فروخته شد، گزینهٔ «اجاره شد» را بزنید. آگهی ۱۲ ساعت با مُهر مربوطه نمایش داده می‌شود و سپس حذف می‌شود.</li>
+</ul>
+<h2>۵. اصول آگهی</h2>
+<ul>
+  <li>مشخصات ملک، شامل قیمت، تعداد اتاق، آدرس و نوع معامله، باید درست و کامل باشد.</li>
+  <li><b>عکس‌ها:</b> یک عکس از <b>بیرون خانه</b> (برای پیدا کردن آسان‌تر ملک) و بقیهٔ عکس‌ها از <b>داخل خانه و اتاق‌ها</b> بگذارید. آگهی‌ای که عکس داخل خانه نداشته باشد، منتشر نمی‌شود و دلیل آن در پنل شما نوشته می‌شود.</li>
+  <li>عکس‌ها باید متعلق به همان ملک باشند. با بارگذاری عکس، اجازهٔ نمایش آن در یامورا را می‌دهید و تأیید می‌کنید که حق استفاده از آن را دارید.</li>
+  <li>شمارهٔ تماس باید معتبر و متعلق به صاحب آگهی یا نمایندهٔ او باشد.</li>
+  <li>هر آگهی باید فقط یک‌بار ثبت شود.</li>
+</ul>
+<h2>۶. موارد ممنوع</h2>
+<ul>
+  <li>ثبت اطلاعات نادرست یا گمراه‌کننده</li>
+  <li>ثبت آگهی تکراری</li>
+  <li>آگهی بدون اجازهٔ مالک</li>
+  <li>استفاده از عکس یا متن دیگران بدون اجازه</li>
+  <li>محتوای توهین‌آمیز یا خلاف قانون</li>
+  <li>درج تبلیغ، لینک یا شمارهٔ نامرتبط در متن آگهی</li>
+  <li>ثبت آگهی برای ملک خارج از محدودهٔ خدمات</li>
+  <li>هر نوع سوءاستفاده از سایت، از جمله ثبت خودکار یا پشت‌سرهم</li>
+</ul>
+<h2>۷. گزارش</h2>
+<ul>
+  <li>در صفحهٔ هر آگهی، دکمهٔ «گزارش» وجود دارد. اگر آگهی نادرست یا مشکوک دیدید، آن را گزارش کنید.</li>
+  <li>گزارش‌ها توسط مدیر بررسی می‌شود.</li>
+  <li>گزارش‌های بی‌دلیل و تکراری ممکن است باعث محدود شدن حساب گزارش‌دهنده شود.</li>
+</ul>
+<h2>۸. اقدام در برابر تخلف</h2>
+<ul><li>در صورت نقض این قوانین، مدیر می‌تواند آگهی را ویرایش، مخفی، رد یا حذف کند و حساب مربوطه را موقت یا دائم مسدود کند.</li></ul>
+<h2>۹. حریم خصوصی</h2>
+<ul>
+  <li>فقط اطلاعاتی که برای کار سایت لازم است نگهداری می‌شود: ایمیل، آگهی‌ها و شمارهٔ تماس.</li>
+  <li>شمارهٔ تماس فقط زمانی نمایش داده می‌شود که بازدیدکننده گزینهٔ «نمایش شماره» را بزند.</li>
+  <li>ایمیل شما برای دیگر کاربران نمایش داده نمی‌شود و اطلاعات شما به کسی فروخته نمی‌شود.</li>
+</ul>
+<h2>۱۰. مسئولیت</h2>
+<ul>
+  <li>مسئولیت درستی هر آگهی با ثبت‌کنندهٔ آن است.</li>
+  <li>یامورا مسئول معامله‌ها و توافق‌های میان کاربران نیست.</li>
+  <li>ممکن است سایت گاهی دچار وقفه شود یا ویژگی‌های آن تغییر کند.</li>
+</ul>
+<h2>۱۱. تغییر قوانین</h2>
+<ul><li>این قوانین ممکن است به‌روزرسانی شود. نسخهٔ جدید در همین صفحه قرار می‌گیرد و ادامهٔ استفاده از سایت به معنای پذیرفتن آخرین نسخهٔ آن است.</li></ul>`; }
 function rulesPage(){
   return '<div class="rules"><h1>قوانین و حریم خصوصی</h1>' + rulesHtml() + '</div>';
 }
@@ -1417,6 +1488,8 @@ document.addEventListener('click', e => {
   if(e.target.closest('[data-retry]')){ loadAds().then(() => route(window.scrollY)); route(window.scrollY); return; }
   const rv = e.target.closest('[data-reveal]');
   if(rv){ revealPhone(rv.dataset.reveal); return; }
+  if(e.target.closest('#welcomeX')){ try{ localStorage.setItem('welcome_seen','1'); }catch(_){} const wb=$('welcomeBox'); if(wb) wb.remove(); return; }
+  if(e.target.closest('.wbtn')){ try{ localStorage.setItem('welcome_seen','1'); }catch(_){} }
   const f = e.target.closest('[data-fav]');
   if(f){ e.preventDefault(); toggleFav(f.dataset.fav); return; }
   const sh = e.target.closest('[data-share]');
