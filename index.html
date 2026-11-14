@@ -251,6 +251,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,.thumbs img:focus-visib
 .a-eye svg{width:22px;height:22px}
 .a-eye.on{color:#e6bd55}
 .a-go{background:#e6bd55}
+.a-key{direction:ltr;text-align:left;font-family:monospace;font-size:16px;letter-spacing:1px;word-break:break-all;background:#17181b;border:1px dashed #5a5d66;border-radius:10px;padding:12px;margin:10px 0 2px;user-select:all}
+.a-qr{margin-top:10px;font-size:13px;color:#b6bbc3}.a-qr img{width:200px;height:200px;background:#fff;border-radius:8px;margin-top:8px}
 .a-warn{font-size:12.5px;color:#e6bd55;text-align:center;margin-top:12px;min-height:18px}
 .a-rules{width:100%;max-width:420px;margin:0 auto;padding:26px 26px 10px}
 .a-rules h1{font-size:22px;margin:6px 0 10px}
@@ -494,9 +496,30 @@ function ph(c){return 'data:image/svg+xml;utf8,'+encodeURIComponent(
 const SB = 'https://rbzfnhpkbsjejnfnoxop.supabase.co';
 const KEY = 'sb_publishable_kqMiVjp56R5uYUN78Y_xdg_eAMQ2Cdj';
 let sess = null;
-try{ sess = JSON.parse(localStorage.getItem('sb_sess')||'null'); }catch(e){}
+const ADMIN_IDLE = 15 * 60 * 1000;
+let lastAct = Date.now();
+try{ const a = sessionStorage.getItem('sb_sess_a'); if(a) sess = JSON.parse(a); }catch(e){}
+try{ if(!sess){ sess = JSON.parse(localStorage.getItem('sb_sess')||'null'); if(sess && sess.admin){ sess = null; localStorage.removeItem('sb_sess'); } } }catch(e){}
+try{ const t = +sessionStorage.getItem('sb_act') || 0; if(sess && sess.admin){ if(!t || Date.now() - t > ADMIN_IDLE){ sess = null; sessionStorage.removeItem('sb_sess_a'); } else lastAct = t; } }catch(e){}
 let isAdmin = !!(sess && sess.admin);
-function saveSess(x){ sess = x; isAdmin = !!(x && x.admin); try{ if(x) localStorage.setItem('sb_sess', JSON.stringify(x)); else localStorage.removeItem('sb_sess'); }catch(e){} }
+function saveSess(x){
+  sess = x; isAdmin = !!(x && x.admin);
+  try{
+    if(x && x.admin){ sessionStorage.setItem('sb_sess_a', JSON.stringify(x)); sessionStorage.setItem('sb_act', String(lastAct = Date.now())); localStorage.removeItem('sb_sess'); }
+    else { sessionStorage.removeItem('sb_sess_a'); sessionStorage.removeItem('sb_act'); if(x) localStorage.setItem('sb_sess', JSON.stringify(x)); else localStorage.removeItem('sb_sess'); }
+  }catch(e){}
+}
+function touchAct(){ if(!isAdmin) return; const n = Date.now(); if(n - lastAct < 10000) return; lastAct = n; try{ sessionStorage.setItem('sb_act', String(n)); }catch(e){} }
+function adminAutoOut(msg){
+  saveSess(null); mineList = null; adminList = null; adminView = null; adminUsers = null; adminStats = null;
+  try{ closeDrawer(); }catch(e){}
+  hist = []; cur = '/'; route(0); loadAds(); toast(msg || 'برای امنیت، از حساب مدیر خارج شدی.');
+}
+function idleCheck(){ if(isAdmin && Date.now() - lastAct > ADMIN_IDLE) adminAutoOut('به‌خاطر بی‌حرکتی، از حساب مدیر خارج شدی.'); }
+['click','keydown','touchstart','scroll'].forEach(ev => window.addEventListener(ev, touchAct, {passive:true, capture:true}));
+setInterval(idleCheck, 30000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) idleCheck(); });
+window.addEventListener('pagehide', ev => { if(!ev.persisted && isAdmin){ try{ sessionStorage.removeItem('sb_sess_a'); sessionStorage.removeItem('sb_act'); }catch(e){} } });
 function mkSess(d, admin, acct, mail){ return {at:d.access_token, rt:d.refresh_token, exp:(d.expires_at || (Math.floor(Date.now()/1000) + (d.expires_in||3600))), uid:(d.user && d.user.id) || '', admin:!!admin, acct:!!acct, mail:mail || ''}; }
 const isUser = () => !!(sess && sess.acct);
 async function raw(path, opt){
@@ -530,6 +553,7 @@ async function getSess(create){
 }
 async function rpc(name, args){ const s = await getSess(); return raw('/rest/v1/rpc/' + name, {method:'POST', body:args || {}, token:s.at}); }
 const ERR = {
+  phone_taken:'این شماره قبلاً در سایت ثبت است.',
   quota_phone:'سهمیه این شماره در این ماه پر است (حداکثر ۳ آگهی تازه در ماه). ویرایش و تمدید آگهی‌های قبلی آزاد است.',
   quota_user:'سهمیهٔ این ماه تمام شد (۳ آگهی در ماه). وقتی سهمیه آزاد شود می‌توانی دوباره بفرستی.',
   'Token has expired':'کد درست نیست یا قدیمی شده. «ارسال دوباره ایمیل» را بزن و کد تازه را بنویس.',
@@ -1211,7 +1235,7 @@ function admUserList(){
   const l = adminUsers.filter(u => (usersSub === 'ban' ? u.banned : !u.banned) && (!q || String(u.email).toLowerCase().includes(q)));
   return l.length ? l.map(u => `<div class="a-us"><div class="m">${esc(u.email)}</div>
     <div class="d">ثبت‌نام: ${dFmt(u.created_at)} · آگهی: ${u.ads}${u.is_adm ? ' · مدیر' : ''}</div>
-    <div class="b"><a href="mailto:${esc(u.email)}">ایمیل</a>${u.is_adm ? '' : `<button type="button" class="${u.banned ? '' : 'red'}" data-ub="${esc(u.id)}" data-bl="${u.banned ? 0 : 1}">${u.banned ? 'رفع مسدودیت' : '🚫 مسدود'}</button>`}</div></div>`).join('')
+    <div class="b"><a href="mailto:${esc(u.email)}">ایمیل</a>${u.is_adm ? '' : `<button type="button" class="${u.banned ? '' : 'red'}" data-ub="${esc(u.id)}" data-bl="${u.banned ? 0 : 1}">${u.banned ? 'رفع مسدودیت' : '🚫 مسدود'}</button><button type="button" class="red" data-ud="${esc(u.id)}">🗑 حذف</button>`}</div></div>`).join('')
     : '<div class="a-empty">کاربری پیدا نشد.</div>';
 }
 function admUsersHtml(){
@@ -1312,6 +1336,12 @@ function initAdmin(){
     if(ub){
       if(ub.dataset.armed !== '1'){ ub.dataset.armed = '1'; ub.textContent = 'مطمئنی؟ دوباره بزن'; return; }
       try{ const bl = ub.dataset.bl === '1'; await rpc('admin_block_user', {p_user:ub.dataset.ub, p_block:bl}); const u = (adminUsers || []).find(x => x.id === ub.dataset.ub); if(u) u.banned = bl; toast(bl ? 'مسدود شد.' : 'مسدودیت برداشته شد.'); loadAdmin().then(drawAdmin).catch(() => drawAdmin()); drawAdmin(); }catch(err){ toast(errMsg(err)); }
+      return;
+    }
+    const ud = e.target.closest('[data-ud]');
+    if(ud){
+      if(ud.dataset.armed !== '1'){ ud.dataset.armed = '1'; ud.textContent = 'مطمئنی؟ حساب و همهٔ آگهی‌هایش پاک می‌شود. دوباره بزن'; return; }
+      try{ await rpc('admin_delete_user', {p_user:ud.dataset.ud}); adminUsers = (adminUsers || []).filter(x => x.id !== ud.dataset.ud); toast('کاربر حذف شد.'); drawAdmin(); loadAdmin().then(drawAdmin).catch(() => drawAdmin()); }catch(err){ toast(errMsg(err)); }
       return;
     }
     const f = e.target.closest('[data-af]'); if(f){ adminFilter = f.dataset.af; drawAdmin(); return; }
@@ -1572,7 +1602,7 @@ function initReport(id){
 let authMode = 'login', authNext = '', authTerms = false, authMail = '', resetTok = null;
 const siteBase = () => (location.protocol === 'file:' || !location.origin || location.origin === 'null') ? '' : location.origin + location.pathname.replace(/index\.html$/, '');
 const redir = () => { const b = siteBase(); return b ? '?redirect_to=' + encodeURIComponent(b) : ''; };
-let authStage = 'form', authPend = null, authPoll = null;
+let authStage = 'form', authPend = null, authPoll = null, mfaPend = null;
 function authStop(){ if(authPoll){ clearInterval(authPoll); authPoll = null; } }
 function showAuth(mode, info, needResend){ authMode = mode; authStage = 'form'; authStop(); drawAuth(info, needResend); $('auth').hidden = false; document.body.style.overflow = 'hidden'; closeDrawer(); }
 function openAuth(next){ authNext = next || ''; showAuth('login'); }
@@ -1581,13 +1611,15 @@ const fillBrand = () => { const mk = document.querySelector('.logo .mark'); cons
 const MAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 async function loginDone(d, mail, home){
   let adm = false;
-  try{ adm = (await raw('/rest/v1/rpc/is_admin', {method:'POST', body:{}, token:d.access_token})) === true; }catch(e){}
+  try{ adm = (await raw('/rest/v1/rpc/is_admin_pw', {method:'POST', body:{}, token:d.access_token})) === true; }catch(e){}
+  if(adm && !d._aal2){ mfaPend = {tok:d, mail:mail, home:home}; authStage = 'mfa'; drawAuth(); return; }
   saveSess(mkSess(d, adm, true, mail)); mineList = null; adminList = null; adminUsers = null; adminStats = null;
   authStop(); authStage = 'form'; authPend = null;
   const n = authNext; authNext = ''; closeAuth(); loadAds();
   if(home){ hist = []; cur = '/'; route(0); } else if(n) go(n); else route(window.scrollY);
 }
 function drawAuth(info, needResend){
+  if(authStage === 'mfa') return drawAuthMfa();
   if(authStage === 'rules') return drawAuthRules();
   if(authStage === 'wait') return drawAuthWait();
   const m = authMode, su = m === 'signup', fg = m === 'forgot', rs = m === 'reset', lg = m === 'login';
@@ -1667,6 +1699,55 @@ function drawAuth(info, needResend){
       if(/not.?confirmed/i.test(String((e && e.code) || ''))) $('aResend').hidden = false;
     }
   };
+}
+async function drawAuthMfa(){
+  authStop();
+  const P = mfaPend; if(!P){ authStage = 'form'; return drawAuth(); }
+  const T = P.tok.access_token;
+  const shell = body => { $('auth').innerHTML = `<button type="button" class="a-x" id="aX" aria-label="بستن">×</button><div class="a-in"><div class="a-brand" id="aBrand"></div><div class="a-name">Yamora</div><div class="a-fa">ورود مدیر · تأیید دو مرحله‌ای</div>${body}</div>`; fillBrand(); $('aX').onclick = cancel; };
+  const cancel = () => { try{ raw('/auth/v1/logout', {method:'POST', token:T}); }catch(e){} mfaPend = null; authStage = 'form'; closeAuth(); };
+  const err = t => { const b = $('aErr'); if(b){ b.textContent = t; b.hidden = !t; } };
+  const codeMsg = e => (e && (e.status === 400 || e.status === 422)) ? 'کد درست نیست. کد تازهٔ Authenticator را بنویس (ساعت گوشی باید دقیق باشد).' : errMsg(e);
+  const verify = async (fid, code) => {
+    const ch = await raw('/auth/v1/factors/' + fid + '/challenge', {method:'POST', body:{}, token:T});
+    const d = await raw('/auth/v1/factors/' + fid + '/verify', {method:'POST', body:{challenge_id:ch.id, code:code}, token:T});
+    d._aal2 = true; if(!d.user) d.user = P.tok.user;
+    mfaPend = null; await loginDone(d, P.mail, P.home);
+  };
+  const codeForm = (fid, extra) => {
+    $('mfaBody').innerHTML = `${extra || ''}<form id="mForm" novalidate><label class="a-l" for="mC">کد ۶ رقمی Authenticator</label>
+      <input class="a-i" id="mC" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456">
+      <div class="a-err" id="aErr" hidden></div><button type="submit" class="a-go" id="aGo">تأیید و ورود</button></form>
+      <button type="button" class="a-link" id="mBk" style="padding-right:0">انصراف</button>`;
+    $('mBk').onclick = cancel;
+    $('mForm').onsubmit = async ev => {
+      ev.preventDefault(); err(''); const c = $('mC').value.replace(/\D/g, '');
+      if(c.length !== 6) return err('کد باید ۶ رقم باشد.');
+      const b = $('aGo'); b.disabled = true; b.textContent = 'لحظه...';
+      try{ await verify(fid, c); }catch(e){ err(codeMsg(e)); if($('aGo')){ $('aGo').disabled = false; $('aGo').textContent = 'تأیید و ورود'; } }
+    };
+    setTimeout(() => { try{ $('mC').focus(); }catch(e){} }, 50);
+  };
+  shell('<div id="mfaBody"><p class="a-p" style="margin-top:18px">لحظه...</p></div>');
+  let u;
+  try{ u = await raw('/auth/v1/user', {token:T}); }catch(e){ $('mfaBody').innerHTML = '<div class="a-err">' + esc(errMsg(e)) + '</div>'; return; }
+  const fs = (u && u.factors) || [];
+  const ok = fs.find(f => f.factor_type === 'totp' && f.status === 'verified');
+  if(ok) return codeForm(ok.id, '<p class="a-p" style="margin-top:18px">برنامهٔ Authenticator را باز کن و کد «Yamora» را بنویس.</p>');
+  // اولین بار: ساخت Authenticator
+  for(const f of fs.filter(f => f.status !== 'verified')){ try{ await raw('/auth/v1/factors/' + f.id, {method:'DELETE', token:T}); }catch(e){} }
+  let en;
+  try{ en = await raw('/auth/v1/factors', {method:'POST', body:{factor_type:'totp', friendly_name:'yamora-' + Date.now().toString(36), issuer:'Yamora'}, token:T}); }
+  catch(e){ $('mfaBody').innerHTML = '<div class="a-err">' + esc(errMsg(e)) + '</div><button type="button" class="a-link" id="mBk" style="padding-right:0">بازگشت</button>'; $('mBk').onclick = cancel; return; }
+  const sec = (en.totp && en.totp.secret) || '', uri = (en.totp && en.totp.uri) || '', qr = (en.totp && en.totp.qr_code) || '';
+  const intro = `<p class="a-p" style="margin-top:18px;line-height:1.9">۱) برنامهٔ Authenticator را باز کن و «+» را بزن.<br>۲) «Enter a setup key» (وارد کردن کلید) را انتخاب کن. اسم: Yamora ، کلید: همین کلید پایین، نوع: Time based.<br>۳) کد ۶ رقمی که ساخت را اینجا بنویس.</p>
+    <div class="a-key" id="mKey">${esc(sec)}</div>
+    <button type="button" class="a-link" id="mCopy" style="padding-right:0">کپی کلید</button>
+    ${uri ? `<a class="a-link" id="mOpen" href="${esc(uri)}" style="padding-right:12px">باز کردن در Authenticator</a>` : ''}
+    ${qr ? `<details class="a-qr"><summary>نمایش QR (اگر از دستگاه دیگر اسکن می‌کنی)</summary><img alt="QR" src="${esc(qr)}"></details>` : ''}
+    <p class="a-warn" style="text-align:right">این کلید را همین حالا در Bitwarden هم ذخیره کن. اگر گوشی گم شد، با آن می‌توانی دوباره بسازی.</p>`;
+  codeForm(en.id, intro);
+  if($('mCopy')) $('mCopy').onclick = async () => { try{ await navigator.clipboard.writeText(sec); toast('کلید کپی شد.'); }catch(e){ toast('کلید را با انگشت نگه دار و کپی کن.'); } };
 }
 function drawAuthRules(){
   authStop();
